@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rust Bmi</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1 style="font-weight: bolder">RUST BMI</h1>
+  <h2 style="font-weight: bolder">Actix-web</h2>
+  <form method="post">
+    <fieldset>
+      <legend>Rust Bmi</legend>
+        <div id="container">
+          <div class="row">
+            <label for="user_name">Name:</label>
+            <input type="text" id="user_name" class="input" name="name" placeholder="name" style="text-align: right; margin-left: 30px">
+          </div>
+          <div class="row">
+            <label for="num1">Weight:</label>
+            <input type="text" id="num1" class="input" name="weight" placeholder="kg" style="text-align: right">
+          </div>
+          <div class="row">
+            <label for="num2">Height:</label>
+            <input type="text" id="num2" class="input" name="height" placeholder="cm" style="text-align: right">
+          </div>
+        </div>
+        <div>
+          <button type="submit" id="calculate_button" formaction="/sum">Calculate</button>
+          <button type="submit" id="save_button" formaction="/save">Save</button><br>
+        </div>
+        <div>
+          {% if result is defined %}
+          {% if result < 18.5 %}
+          <label>Underweight: </label>
+          <label style="color: yellow; font-weight: bold">{{ result }}</label>
+          {% elif result >= 18.5 and result <= 24.9 %}
+          <label>Normal: </label>
+          <label style="color: green; font-weight: bold">{{ result }}</label>
+          {% elif result >= 25.0 and result <= 29.9 %}
+          <label>Overweight: </label>
+          <label style="color: red; font-weight: bold">{{ result }}</label>
+          {% else %}
+          <label>Obesity: </label>
+          <label style="color: darkred; font-weight: bold">{{ result }}</label>
+          {% endif %}
+          {% endif %}
+          {% if error is defined %}
+          <label>{{ error }}</label>
+          {% endif %}
+        </div>
+    </fieldset>
+  </form>
+</body>
+</html>
