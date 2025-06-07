@@ -1,7 +1,9 @@
 #![allow(unused)]
 
+use std::num::ParseFloatError;
 use actix_files::Files;
 use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
+use actix_web::web::Form;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 use chrono::prelude::*;
@@ -20,34 +22,44 @@ async fn index() -> impl Responder {
     HttpResponse::Ok().content_type("text/html").body(render)
 }
 
-async fn calculate_sum(form: web::Form<UserData>, tera: web::Data<Tera>) -> Result<impl Responder> {
+async fn calculate(form: Form<UserData>, tera: web::Data<Tera>) -> Result<impl Responder> {
     let weight = form.weight.trim().parse::<f64>();
     let height = form.height.trim().parse::<f64>();
-    
+    let mut context = Context::new();
+   
     match (weight, height) {
         (Ok(w), Ok(h)) => {
-            let mut context = Context::new();
-            let h =  h / 100.0;
-            let bmi = w / (h * h);
-            let round_bmi = (bmi * 100.0).round() / 100.0; 
-            context.insert("result", &round_bmi);
+            if w <= 0.0 || h <= 0.0 {
+                context.insert("error", "Weight and height must be greater than zero.");
+                let rendered = tera.render("index.html", &context).unwrap();
+                Ok(HttpResponse::Ok().content_type("text/html").body(rendered))
+            }
 
-            let rendered = tera.render("index.html", &context).unwrap();
+            else if w > 500.0 || h > 300.0 {
+                context.insert("error", "The provided values are outside the realistic range.");
+                let rendered = tera.render("index.html", &context).unwrap();
+                Ok(HttpResponse::Ok().content_type("text/html").body(rendered))
+            } 
             
-            Ok(HttpResponse::Ok().content_type("text/html").body(rendered))
+            else {
+                let h =  h / 100.0;
+                let bmi = w / (h * h);
+                let round_bmi = (bmi * 100.0).round() / 100.0;
+
+                context.insert("result", &round_bmi);
+                let rendered = tera.render("index.html", &context).unwrap();
+                Ok(HttpResponse::Ok().content_type("text/html").body(rendered))
+            }
         }
         _ => {
-            let mut context = Context::new();
             context.insert("error", "All fields should be filled!");
-
             let rendered = tera.render("index.html", &context).unwrap();
-
             Ok(HttpResponse::Ok().content_type("text/html").body(rendered))
         }
     }
 }
 
-async fn save(form: web::Form<UserData>, tera: web::Data<Tera>) -> impl Responder {
+async fn save(form: web::Form<UserData>) -> impl Responder {
     let local_date = Local::now().date_naive();
     let format_date = local_date.format("%d.%m.%Y");
     HttpResponse::Ok().body(format!("{}", format_date))
@@ -60,7 +72,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(tera.clone()))
             .route("/", web::get().to(index))
-            .route("/sum", web::post().to(calculate_sum))
+            .route("/sum", web::post().to(calculate))
             .route("/save", web::post().to(save))
             .service(Files::new("/", "./static"))
     })
