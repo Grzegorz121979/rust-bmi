@@ -4,6 +4,7 @@ use actix_files::Files;
 use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
+use chrono::prelude::*;
 
 #[derive(Deserialize, Serialize)]
 struct UserData {
@@ -47,7 +48,9 @@ async fn calculate_sum(form: web::Form<UserData>, tera: web::Data<Tera>) -> Resu
 }
 
 async fn save(form: web::Form<UserData>, tera: web::Data<Tera>) -> impl Responder {
-    HttpResponse::Ok().body("Data Saved!")
+    let local_date = Local::now().date_naive();
+    let format_date = local_date.format("%d.%m.%Y");
+    HttpResponse::Ok().body(format!("{}", format_date))
 }
 
 #[actix_web::main]
