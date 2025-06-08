@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use std::error::Error;
 use actix_files::Files;
 use actix_web::web::Form;
 use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fs::File;
 use std::io::Write;
+use std::num::ParseFloatError;
 use tera::{Context, Tera};
 
 #[derive(Deserialize, Serialize)]
@@ -22,6 +24,17 @@ async fn index() -> impl Responder {
     let mut context = Context::new();
     let render = tera.render("index.html", &context).unwrap();
     HttpResponse::Ok().content_type("text/html").body(render)
+}
+
+fn bmi_result(form: &Form<UserData>) -> Result<f64, ParseFloatError> {
+    let weight = form.weight.trim().parse::<f64>()?;
+    let height = form.height.trim().parse::<f64>()?;
+    
+    let height_meters = height / 100.0;
+    let bmi = weight / (height_meters * height_meters);
+    let round_bmi = (bmi * 100.0).round() / 100.0;
+    
+    Ok(round_bmi)
 }
 
 async fn calculate(form: Form<UserData>, tera: web::Data<Tera>) -> Result<impl Responder> {
@@ -64,7 +77,8 @@ async fn save_data(form: Form<UserData>, tera: web::Data<Tera>) -> impl Responde
     let mut context = Context::new();
     let local_date = Local::now().date_naive();
     let format_date = local_date.format("%d.%m.%Y").to_string();
-    let json_data = json!({"name": form.name, "weight": form.weight, "date": format_date});
+    let mut bmi_f64 = bmi_result(&form).unwrap();
+    let json_data = json!({"name": form.name, "weight": form.weight, "date": format_date, "bmi": bmi_f64});
 
     match File::create("data.json") {
         Ok(mut file) => {
