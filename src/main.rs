@@ -1,14 +1,14 @@
 #![allow(unused)]
 
-use std::fs::File;
 use actix_files::Files;
-use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
 use actix_web::web::Form;
-use serde::{Deserialize, Serialize};
-use tera::{Context, Tera};
+use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
 use chrono::prelude::*;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::fs::File;
 use std::io::Write;
+use tera::{Context, Tera};
 
 #[derive(Deserialize, Serialize)]
 struct UserData {
@@ -28,23 +28,22 @@ async fn calculate(form: Form<UserData>, tera: web::Data<Tera>) -> Result<impl R
     let weight = form.weight.trim().parse::<f64>();
     let height = form.height.trim().parse::<f64>();
     let mut context = Context::new();
-   
+
     match (weight, height) {
         (Ok(w), Ok(h)) => {
             if w <= 0.0 || h <= 0.0 {
                 context.insert("error", "Weight and height must be greater than zero.");
                 let rendered = tera.render("index.html", &context).unwrap();
                 Ok(HttpResponse::Ok().content_type("text/html").body(rendered))
-            }
-
-            else if w > 500.0 || h > 300.0 {
-                context.insert("error", "The provided values are outside the realistic range.");
+            } else if w > 500.0 || h > 300.0 {
+                context.insert(
+                    "error",
+                    "The provided values are outside the realistic range.",
+                );
                 let rendered = tera.render("index.html", &context).unwrap();
                 Ok(HttpResponse::Ok().content_type("text/html").body(rendered))
-            } 
-            
-            else {
-                let h =  h / 100.0;
+            } else {
+                let h = h / 100.0;
                 let bmi = w / (h * h);
                 let round_bmi = (bmi * 100.0).round() / 100.0;
 
@@ -69,11 +68,18 @@ async fn save_data(form: Form<UserData>, tera: web::Data<Tera>) -> impl Responde
 
     match File::create("data.json") {
         Ok(mut file) => {
-            if let Err(e) = write!(file, "{}", serde_json::to_string_pretty(&json_data).unwrap()) {
-                return HttpResponse::InternalServerError().body(format!("Error writing to file: {}", e));
+            if let Err(e) = write!(
+                file,
+                "{}",
+                serde_json::to_string_pretty(&json_data).unwrap()
+            ) {
+                return HttpResponse::InternalServerError()
+                    .body(format!("Error writing to file: {}", e));
             }
-        },
-        Err(e) => return HttpResponse::InternalServerError().body(format!("Error creating file: {}", e)),
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError().body(format!("Error creating file: {}", e));
+        }
     }
     context.insert("error", "Data saved!");
     let rendered = tera.render("index.html", &context).unwrap();
