@@ -1,12 +1,15 @@
 #![allow(unused)]
 
+use std::fs::File;
 use std::num::ParseFloatError;
 use actix_files::Files;
-use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
-use actix_web::web::Form;
+use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web, post};
+use actix_web::web::{Form, Json};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
 use chrono::prelude::*;
+use serde_json::json;
+use std::io::Write;
 
 #[derive(Deserialize, Serialize)]
 struct UserData {
@@ -52,17 +55,28 @@ async fn calculate(form: Form<UserData>, tera: web::Data<Tera>) -> Result<impl R
             }
         }
         _ => {
-            context.insert("error", "All fields should be filled!");
+            context.insert("error", "All fields should be filled in!");
             let rendered = tera.render("index.html", &context).unwrap();
             Ok(HttpResponse::Ok().content_type("text/html").body(rendered))
         }
     }
 }
 
-async fn save(form: web::Form<UserData>) -> impl Responder {
+async fn save_data(form: Form<UserData>) -> impl Responder {
     let local_date = Local::now().date_naive();
-    let format_date = local_date.format("%d.%m.%Y");
-    HttpResponse::Ok().body(format!("{}", format_date))
+    let format_date = local_date.format("%d.%m.%Y").to_string();
+    let json_data = json!({"name": form.name, "weight": form.weight, "date": format_date});
+
+    match File::create("data.json") {
+        Ok(mut file) => {
+            if let Err(e) = write!(file, "{}", serde_json::to_string_pretty(&json_data).unwrap()) {
+                return HttpResponse::InternalServerError().body(format!("{}", e));
+            }
+        },
+        Err(e) => return HttpResponse::InternalServerError().body(format!("{}", e)),
+    }
+    
+    HttpResponse::Ok().body("Data saved.")
 }
 
 #[actix_web::main]
@@ -73,7 +87,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(tera.clone()))
             .route("/", web::get().to(index))
             .route("/sum", web::post().to(calculate))
-            .route("/save", web::post().to(save))
+            .route("/save", web::post().to(save_data))
             .service(Files::new("/", "./static"))
     })
     .bind(("127.0.0.1", 8080))?
