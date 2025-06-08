@@ -1,4 +1,4 @@
-//#![allow(unused)]
+#![allow(unused)]
 
 use std::fs::File;
 use actix_files::Files;
@@ -61,7 +61,8 @@ async fn calculate(form: Form<UserData>, tera: web::Data<Tera>) -> Result<impl R
     }
 }
 
-async fn save_data(form: Form<UserData>) -> impl Responder {
+async fn save_data(form: Form<UserData>, tera: web::Data<Tera>) -> impl Responder {
+    let mut context = Context::new();
     let local_date = Local::now().date_naive();
     let format_date = local_date.format("%d.%m.%Y").to_string();
     let json_data = json!({"name": form.name, "weight": form.weight, "date": format_date});
@@ -69,13 +70,14 @@ async fn save_data(form: Form<UserData>) -> impl Responder {
     match File::create("data.json") {
         Ok(mut file) => {
             if let Err(e) = write!(file, "{}", serde_json::to_string_pretty(&json_data).unwrap()) {
-                return HttpResponse::InternalServerError().body(format!("{}", e));
+                return HttpResponse::InternalServerError().body(format!("Error writing to file: {}", e));
             }
         },
-        Err(e) => return HttpResponse::InternalServerError().body(format!("{}", e)),
+        Err(e) => return HttpResponse::InternalServerError().body(format!("Error creating file: {}", e)),
     }
-    
-    HttpResponse::Ok().body("Data saved.")
+    context.insert("error", "Data saved!");
+    let rendered = tera.render("index.html", &context).unwrap();
+    HttpResponse::Ok().content_type("text/html").body(rendered)
 }
 
 #[actix_web::main]
