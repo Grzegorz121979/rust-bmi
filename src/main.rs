@@ -5,9 +5,9 @@ use actix_web::web::Form;
 use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::fs::File;
-use std::io::Write;
+use serde_json::{Value, json};
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
 use std::num::ParseFloatError;
 use tera::{Context, Tera};
 
@@ -28,10 +28,10 @@ async fn index() -> impl Responder {
 fn bmi_result(form: &Form<UserData>) -> Result<f64, ParseFloatError> {
     let weight = form.weight.trim().parse::<f64>()?;
     let height = form.height.trim().parse::<f64>()?;
-    
-    if weight == 0.0 || height == 0.0 {
+
+    if weight <= 0.0 || height <= 0.0 {
         Ok(0.0)
-    } else if weight == 400.0 || height == 300.0 {
+    } else if weight >= 400.0 || height >= 300.0 {
         Ok(0.0)
     } else {
         let height_meters = height / 100.0;
@@ -86,21 +86,36 @@ async fn save_data(form: Form<UserData>, tera: web::Data<Tera>) -> impl Responde
     let json_data =
         json!({"name": form.name, "weight": form.weight, "date": format_date, "bmi": bmi_f64});
 
-    match File::create("data.json") {
+    let mut data_vec: Vec<Value> = Vec::new();
+
+    if let Ok(mut file) = File::open("data.json") {
+        let mut contents = String::new();
+        if file.read_to_string(&mut contents).is_ok() {
+            if let Ok(parse) = serde_json::from_str::<Vec<Value>>(&contents) {
+                data_vec = parse;
+            }
+        }
+    }
+
+    data_vec.push(json_data);
+
+    match OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("data.json")
+    {
         Ok(mut file) => {
-            if let Err(e) = write!(
-                file,
-                "{}",
-                serde_json::to_string_pretty(&json_data).unwrap()
-            ) {
-                return HttpResponse::InternalServerError()
+            if let Err(e) = write!(file, "{}", serde_json::to_string_pretty(&data_vec).unwrap()) {
+                HttpResponse::InternalServerError()
                     .body(format!("Error writing to file: {}", e));
             }
         }
         Err(e) => {
-            return HttpResponse::InternalServerError().body(format!("Error creating file: {}", e));
+            HttpResponse::InternalServerError().body(format!("Error opening file; {}", e));
         }
     }
+
     context.insert("error", "Data saved!");
     let rendered = tera.render("index.html", &context).unwrap();
     HttpResponse::Ok().content_type("text/html").body(rendered)
